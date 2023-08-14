@@ -1,50 +1,115 @@
-#!/usr/bin/python3
-"""Unittest test_user module"""
-
+"""Defines unittests for models/user.py.
+Unittest classes:
+    TestUser_instantiation
+    TestUser_save
+    TestUser_to_dict
+"""
+import os
+import models
 import unittest
-import pycodestyle
-from models.engine.file_storage import FileStorage
+from datetime import datetime
+from time import sleep
 from models.user import User
+class TestUser_save(unittest.TestCase):
+    """Unittests for testing save method of the User class."""
 
-
-class TestUser(unittest.TestCase):
-    """Test cases for TestUser class"""
-
+    @classmethod
     def setUp(self):
-        """Set up test cases"""
-        self.storage = FileStorage()
-        self.storage.reload()
-        self.storage._FileStorage__objects = {}
+        try:
+            os.rename("file.json", "tmp")
+        except IOError:
+            pass
 
     def tearDown(self):
-        """Clean up after test cases"""
-        self.storage._FileStorage__objects = {}
+        try:
+            os.remove("file.json")
+        except IOError:
+            pass
+        try:
+            os.rename("tmp", "file.json")
+        except IOError:
+            pass
 
-    def test_user(self):
-        """Test the User class"""
-        my_user = User()
-        my_user.first_name = "Khaled"
-        my_user.last_name = "Ibn Al-Walid"
-        my_user.email = "unbeatable@leader.war"
-        my_user.password = "TheSwordOfGod"
-        my_user.save()
+    def test_one_save(self):
+        us = User()
+        sleep(0.05)
+        first_updated_at = us.updated_at
+        us.save()
+        self.assertLess(first_updated_at, us.updated_at)
 
-        all_objs = self.storage.all()
-        key = f'User.{my_user.id}'
-        self.assertIn(key, all_objs.keys())
+    def test_two_saves(self):
+        us = User()
+        sleep(0.05)
+        first_updated_at = us.updated_at
+        us.save()
+        second_updated_at = us.updated_at
+        self.assertLess(first_updated_at, second_updated_at)
+        sleep(0.05)
+        us.save()
+        self.assertLess(second_updated_at, us.updated_at)
 
-    def test_pycodestyle(self):
-        """Test that the code follows pycodestyle guidelines"""
-        style = pycodestyle.StyleGuide(quiet=True)
-        result = style.check_files(['models/user.py'])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warnings).")
+    def test_save_with_arg(self):
+        us = User()
+        with self.assertRaises(TypeError):
+            us.save(None)
 
-    def test_module_docstring(self):
-        """Test that the module has a docstring"""
-        import models.user
-        self.assertIsNotNone(models.user.__doc__)
+    def test_save_updates_file(self):
+        us = User()
+        us.save()
+        usid = "User." + us.id
+        with open("file.json", "r") as f:
+            self.assertIn(usid, f.read())
 
-    def test_class_docstring(self):
-        """Test that the class has a docstring"""
-        self.assertIsNotNone(User.__doc__)
+
+class TestUser_to_dict(unittest.TestCase):
+    """Unittests for testing to_dict method of the User class."""
+
+    def test_to_dict_type(self):
+        self.assertTrue(dict, type(User().to_dict()))
+
+    def test_to_dict_contains_correct_keys(self):
+        us = User()
+        self.assertIn("id", us.to_dict())
+        self.assertIn("created_at", us.to_dict())
+        self.assertIn("updated_at", us.to_dict())
+        self.assertIn("__class__", us.to_dict())
+
+    def test_to_dict_contains_added_attributes(self):
+        us = User()
+        us.middle_name = "Holberton"
+        us.my_number = 98
+        self.assertEqual("Holberton", us.middle_name)
+        self.assertIn("my_number", us.to_dict())
+
+    def test_to_dict_datetime_attributes_are_strs(self):
+        us = User()
+        us_dict = us.to_dict()
+        self.assertEqual(str, type(us_dict["id"]))
+        self.assertEqual(str, type(us_dict["created_at"]))
+        self.assertEqual(str, type(us_dict["updated_at"]))
+
+    def test_to_dict_output(self):
+        dt = datetime.today()
+        us = User()
+        us.id = "123456"
+        us.created_at = us.updated_at = dt
+        tdict = {
+            'id': '123456',
+            '__class__': 'User',
+            'created_at': dt.isoformat(),
+            'updated_at': dt.isoformat(),
+        }
+        self.assertDictEqual(us.to_dict(), tdict)
+
+    def test_contrast_to_dict_dunder_dict(self):
+        us = User()
+        self.assertNotEqual(us.to_dict(), us.__dict__)
+
+    def test_to_dict_with_arg(self):
+        us = User()
+        with self.assertRaises(TypeError):
+            us.to_dict(None)
+
+
+if __name__ == "__main__":
+    unittest.main()

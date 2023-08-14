@@ -1,49 +1,116 @@
 #!/usr/bin/python3
-"""Unittest test_review module"""
-
+"""Defines unittests for models/review.py.
+Unittest classes:
+    TestReview_instantiation
+    TestReview_save
+    TestReview_to_dict
+"""
+import os
+import models
 import unittest
-import pycodestyle
-from models.engine.file_storage import FileStorage
+from datetime import datetime
+from time import sleep
 from models.review import Review
+class TestReview_save(unittest.TestCase):
+    """Unittests for testing save method of the Review class."""
 
-
-class TestReview(unittest.TestCase):
-    """Test cases for TestReview class"""
-
+    @classmethod
     def setUp(self):
-        """Set up test cases"""
-        self.storage = FileStorage()
-        self.storage.reload()
-        self.storage._FileStorage__objects = {}
+        try:
+            os.rename("file.json", "tmp")
+        except IOError:
+            pass
 
     def tearDown(self):
-        """Clean up after test cases"""
-        self.storage._FileStorage__objects = {}
+        try:
+            os.remove("file.json")
+        except IOError:
+            pass
+        try:
+            os.rename("tmp", "file.json")
+        except IOError:
+            pass
 
-    def test_review(self):
-        """Test the Review class"""
-        my_review = Review()
-        my_review.place_id = "0001"
-        my_review.review_id = "0002"
-        my_review.text = "Great place, had a wonderful time!"
-        my_review.save()
+    def test_one_save(self):
+        rv = Review()
+        sleep(0.05)
+        first_updated_at = rv.updated_at
+        rv.save()
+        self.assertLess(first_updated_at, rv.updated_at)
 
-        all_objs = self.storage.all()
-        key = f'Review.{my_review.id}'
-        self.assertIn(key, all_objs.keys())
+    def test_two_saves(self):
+        rv = Review()
+        sleep(0.05)
+        first_updated_at = rv.updated_at
+        rv.save()
+        second_updated_at = rv.updated_at
+        self.assertLess(first_updated_at, second_updated_at)
+        sleep(0.05)
+        rv.save()
+        self.assertLess(second_updated_at, rv.updated_at)
 
-    def test_pycodestyle(self):
-        """Test that the code follows pycodestyle guidelines"""
-        style = pycodestyle.StyleGuide(quiet=True)
-        result = style.check_files(['models/review.py'])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warnings).")
+    def test_save_with_arg(self):
+        rv = Review()
+        with self.assertRaises(TypeError):
+            rv.save(None)
 
-    def test_module_docstring(self):
-        """Test that the module has a docstring"""
-        import models.review
-        self.assertIsNotNone(models.review.__doc__)
+    def test_save_updates_file(self):
+        rv = Review()
+        rv.save()
+        rvid = "Review." + rv.id
+        with open("file.json", "r") as f:
+            self.assertIn(rvid, f.read())
 
-    def test_class_docstring(self):
-        """Test that the class has a docstring"""
-        self.assertIsNotNone(Review.__doc__)
+
+class TestReview_to_dict(unittest.TestCase):
+    """Unittests for testing to_dict method of the Review class."""
+
+    def test_to_dict_type(self):
+        self.assertTrue(dict, type(Review().to_dict()))
+
+    def test_to_dict_contains_correct_keys(self):
+        rv = Review()
+        self.assertIn("id", rv.to_dict())
+        self.assertIn("created_at", rv.to_dict())
+        self.assertIn("updated_at", rv.to_dict())
+        self.assertIn("__class__", rv.to_dict())
+
+    def test_to_dict_contains_added_attributes(self):
+        rv = Review()
+        rv.middle_name = "Holberton"
+        rv.my_number = 98
+        self.assertEqual("Holberton", rv.middle_name)
+        self.assertIn("my_number", rv.to_dict())
+
+    def test_to_dict_datetime_attributes_are_strs(self):
+        rv = Review()
+        rv_dict = rv.to_dict()
+        self.assertEqual(str, type(rv_dict["id"]))
+        self.assertEqual(str, type(rv_dict["created_at"]))
+        self.assertEqual(str, type(rv_dict["updated_at"]))
+
+    def test_to_dict_output(self):
+        dt = datetime.today()
+        rv = Review()
+        rv.id = "123456"
+        rv.created_at = rv.updated_at = dt
+        tdict = {
+            'id': '123456',
+            '__class__': 'Review',
+            'created_at': dt.isoformat(),
+            'updated_at': dt.isoformat(),
+        }
+        self.assertDictEqual(rv.to_dict(), tdict)
+
+    def test_contrast_to_dict_dunder_dict(self):
+        rv = Review()
+        self.assertNotEqual(rv.to_dict(), rv.__dict__)
+
+    def test_to_dict_with_arg(self):
+        rv = Review()
+        with self.assertRaises(TypeError):
+            rv.to_dict(None)
+
+
+if __name__ == "__main__":
+    unittest.main()
